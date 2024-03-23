@@ -1,0 +1,20 @@
+[package]
+name = "netem_rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async_xdp = { path = "../async_xdp" }
+anyhow = "1.0.44"
+tokio = { version = "1", features = ["full"] }
+log = "0.4.14"
+packet = "0.1.4"
+hwaddr = "0.1.7"
+mac_address = "1.1.5"
+clap = { version = "4.5.3", features = ["derive"] }
+toml = "0.8.12"
+
+[dev-dependencies]
+tokio ={ version = "1", features = ["full"]}
