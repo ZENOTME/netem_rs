@@ -3,10 +3,16 @@ use std::{collections::HashMap, sync::Arc};
 use hwaddr::HwAddr;
 use tokio::sync::RwLock;
 
-// Map mac address to port id
-#[derive(Clone)]
+// A table map mac address to port id. It can be shared between multiple owners and access concurrently.
+#[derive(Clone, Debug)]
 pub struct RouteTable {
     inner: Arc<RwLock<HashMap<HwAddr, u32>>>,
+}
+
+impl Default for RouteTable {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RouteTable {

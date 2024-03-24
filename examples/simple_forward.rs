@@ -28,19 +28,23 @@ impl Actor for ForwardActor {
     }
 
     async fn run(&mut self) -> anyhow::Result<()> {
+        let port_id = self.context.receive_handle.port_id();
         loop {
-            let frames = self.context.receive_handle.receive().await?;
+            let frames = self.context.receive_handle.receive_frames().await?;
             for frame in frames {
-                let payload = self.context.packet_data(&frame);
-                let data = payload.contents();
-                let packet = Packet::new(data).unwrap();
+                let packet = Packet::new(frame.as_slice()).unwrap();
                 if packet.destination().is_broadcast() {
                     self.context
                         .send_handles
                         .read()
                         .await
-                        .values()
-                        .for_each(|send_handle| send_handle.send(data.to_vec()).unwrap());
+                        .iter()
+                        .filter(|(&pid, _)| pid != port_id)
+                        .for_each(|(_, send_handle)| {
+                            send_handle
+                                .send_raw_data(frame.as_slice().to_vec())
+                                .unwrap()
+                        });
                 } else {
                     let port_id = self
                         .context
@@ -54,7 +58,7 @@ impl Actor for ForwardActor {
                             .await
                             .get(&port_id)
                             .unwrap()
-                            .send_frame(vec![frame].into())
+                            .send_frame(frame)
                             .unwrap();
                     }
                 }
