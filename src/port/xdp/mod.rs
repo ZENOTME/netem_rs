@@ -1,51 +1,17 @@
-use std::collections::HashMap;
+use std::sync::Arc;
 
 use async_xdp::{
-    config::{SocketConfig, UmemConfig},
-    FrameManager, SingleThreadRunner, SlabManager, SlabManagerConfig, Umem, XdpContext,
-    XdpContextBuilder,
+    config::{LibxdpFlags, SocketConfig, UmemConfig},
+    regsiter_xdp_program, FrameManager, SingleThreadRunner, SlabManager, SlabManagerConfig, Umem,
+    XdpContext, XdpContextBuilder,
 };
 use hwaddr::HwAddr;
-use smallvec::SmallVec;
 
-use crate::FrameImpl;
+mod local;
+pub(crate) use local::*;
 
-use super::{Frame, PortReceiveHandle, PortSendHandle, BATCH_SIZSE};
-
-impl Frame for async_xdp::Frame {
-    fn as_slice(&self) -> &[u8] {
-        self.as_ref()
-    }
-
-    fn as_slice_mut(&mut self) -> &mut [u8] {
-        self.as_mut()
-    }
-}
-
-impl PortReceiveHandle for async_xdp::XdpReceiveHandle {
-    async fn receive_frames(&mut self) -> anyhow::Result<SmallVec<[FrameImpl; BATCH_SIZSE]>> {
-        let frames = self.receive().await?;
-        Ok(frames
-            .into_iter()
-            .map(FrameImpl::Xdp)
-            .collect())
-    }
-}
-
-impl PortSendHandle for async_xdp::XdpSendHandle {
-    fn send_frame(&self, frame: FrameImpl) -> anyhow::Result<()> {
-        match frame {
-            FrameImpl::Xdp(frame) => self.send_frame(vec![frame].into()),
-        }
-    }
-
-    fn send_raw_data(&self, data: Vec<u8>) -> anyhow::Result<()> {
-        self.send(data)
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct XdpConfig {
+#[derive(Clone, Debug)]
+pub struct XdpConfig {
     pub if_name: String,
     pub queue_id: u32,
     pub mac_addr: HwAddr,
@@ -61,6 +27,24 @@ impl XdpConfig {
         let socket_config = SocketConfig::builder()
             .rx_queue_size((4096).try_into().unwrap())
             .tx_queue_size((4096).try_into().unwrap())
+            .build();
+        Self {
+            if_name,
+            queue_id,
+            mac_addr,
+            socket_config,
+        }
+    }
+
+    pub fn new_remote_with_default_socket_config(
+        if_name: String,
+        queue_id: u32,
+        mac_addr: HwAddr,
+    ) -> Self {
+        let socket_config = SocketConfig::builder()
+            .rx_queue_size((4096).try_into().unwrap())
+            .tx_queue_size((4096).try_into().unwrap())
+            .libbpf_flags(LibxdpFlags::XSK_LIBXDP_FLAGS_INHIBIT_PROG_LOAD)
             .build();
         Self {
             if_name,
@@ -91,10 +75,10 @@ impl Default for XdpManagerConfig {
     }
 }
 
+pub(crate) type XdpManagerRef = Arc<XdpManager>;
+
 pub(crate) struct XdpManager {
     xdp_runner: SingleThreadRunner,
-    xdp_contexts: HashMap<u32, XdpContext>,
-
     umem: Umem,
     frame_manager: SlabManager,
 }
@@ -105,6 +89,7 @@ impl XdpManager {
             umem_config,
             slab_manager_config,
         } = config;
+
         // Create the umem and slab manager
         let (umem, frames) =
             Umem::new(umem_config, (4096 * 16).try_into().unwrap(), false).unwrap();
@@ -112,10 +97,21 @@ impl XdpManager {
 
         Self {
             xdp_runner: SingleThreadRunner::new(),
-            xdp_contexts: HashMap::new(),
             umem,
             frame_manager,
         }
+    }
+
+    /// Register the xdp program if the remote xdp mode is enabled. Otherwise the remote xdp port will create
+    /// fail.
+    #[allow(dead_code)]
+    pub fn register_xdp_program(
+        &self,
+        program: &str,
+        session: &str,
+        if_name: &str,
+    ) -> anyhow::Result<()> {
+        regsiter_xdp_program(program, session, if_name).map_err(|e| anyhow::anyhow!(e))
     }
 
     fn create_new_context(
@@ -127,19 +123,18 @@ impl XdpManager {
         let mut xdp_context_builder = XdpContextBuilder::<SlabManager>::new(if_name, queue_id);
         xdp_context_builder
             .with_exist_umem(self.umem.clone(), self.frame_manager.clone())
-            .with_socket_config(socket);
+            .with_socket_config(socket)
+            .with_trace_mode(true);
         xdp_context_builder.build(&self.xdp_runner)
     }
 
-    pub fn create_xdp(&mut self, port_id: u32, config: XdpConfig) -> anyhow::Result<&XdpContext> {
+    pub fn create_xdp(&self, config: XdpConfig) -> anyhow::Result<XdpContext> {
         let XdpConfig {
             if_name,
             queue_id,
             mac_addr: _,
             socket_config,
         } = config;
-        let context = self.create_new_context(&if_name, queue_id, socket_config)?;
-        self.xdp_contexts.insert(port_id, context);
-        Ok(self.xdp_contexts.get(&port_id).unwrap())
+        self.create_new_context(&if_name, queue_id, socket_config)
     }
 }

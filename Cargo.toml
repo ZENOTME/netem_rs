@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async_xdp = { path = "../async_xdp" }
+async_xdp = { git = "https://github.com/ZENOTME/async_xdp", branch = "xdp_prog"}
 anyhow = "1.0.44"
 tokio = { version = "1", features = ["full"] }
 log = "0.4.14"
@@ -15,6 +15,20 @@ hwaddr = "0.1.7"
 clap = { version = "4.5.3", features = ["derive"] }
 toml = "0.8.12"
 smallvec = "1.6.1"
+prost = "0.12"
+tonic = "0.11"
+tokio-stream = "0.1"
+async-trait = "0.1"
+futures-async-stream = "0.2"
+redis = { version = "0.25.3", features = ["tokio-comp"] }
+futures = "0.3.30"
+url = "2"
 
 [dev-dependencies]
 tokio ={ version = "1", features = ["full"]}
+env_logger = "0.11.3"
+clap = { version = "4.5.3", features = ["derive"] }
+
+[build-dependencies]
+prost-build = "0.12"
+tonic-build = "0.11"

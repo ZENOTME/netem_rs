@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package remote_port;
+
+import "common.proto";
+
+service RemotePortService {
+    rpc CreateStream(stream Packet) returns (stream Packet);
+}
+
+message Packet {
+    bytes payload = 1;
+}

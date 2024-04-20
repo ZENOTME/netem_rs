@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package actor;
+
+import "common.proto";
+
+message Status {
+    enum Code {
+        OK = 0;
+        FAIL = 1;
+    }
+    Code code = 1;
+    string message = 2;
+}
+
+message CreateActorRequest {
+    string if_name = 1;
+    uint32 queue_id = 2;
+    string port_type = 3;
+    bytes mac_addr = 4;
+}
+
+message CreateActorResponse {
+    Status status = 1;
+}
+
+message SubscribeRequest {
+    common.NodeInfo info = 1;
+}
+
+message ActorInfo {
+    bytes mac_addr = 1;
+}
+
+message SubscribeResponse {
+    repeated ActorInfo infos = 1;
+    Status status = 2;
+}
+
+message UpdateActorRequest {
+    bytes mac_addr = 1;
+}
+
+message UpdateActorResponse {
+    Status status = 1;
+}
+
+service ActorService {
+    rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
+    rpc UpdateActor(UpdateActorRequest) returns (UpdateActorResponse);
+    rpc CreateActor(CreateActorRequest) returns (CreateActorResponse);
+}

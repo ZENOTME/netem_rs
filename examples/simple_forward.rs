@@ -1,5 +1,6 @@
 use netem_rs::{Actor, ActorContext, DataView, LocalRunTime};
 use packet::ether::Packet;
+use smallvec::smallvec;
 
 #[derive(Clone)]
 struct EmptyDataView;
@@ -28,39 +29,29 @@ impl Actor for ForwardActor {
     }
 
     async fn run(&mut self) -> anyhow::Result<()> {
-        let port_id = self.context.receive_handle.port_id();
+        let self_port_id = self.context.receive_handle.port_id();
         loop {
             let frames = self.context.receive_handle.receive_frames().await?;
             for frame in frames {
-                let packet = Packet::new(frame.as_slice()).unwrap();
+                let packet = Packet::new(frame.data_ref()).unwrap();
                 if packet.destination().is_broadcast() {
                     self.context
-                        .send_handles
-                        .read()
-                        .await
-                        .iter()
-                        .filter(|(&pid, _)| pid != port_id)
-                        .for_each(|(_, send_handle)| {
-                            send_handle
-                                .send_raw_data(frame.as_slice().to_vec())
-                                .unwrap()
-                        });
+                        .port_table
+                        .for_each_port(|&port_id, send_handle| {
+                            if port_id != self_port_id {
+                                send_handle.send_raw_data(frame.data_ref().to_vec())
+                            } else {
+                                Ok(())
+                            }
+                        })
+                        .await?;
                 } else {
-                    let port_id = self
-                        .context
-                        .route_table
-                        .get_port_id(packet.destination())
-                        .await;
-                    if let Some(port_id) = port_id {
-                        self.context
-                            .send_handles
-                            .read()
-                            .await
-                            .get(&port_id)
-                            .unwrap()
-                            .send_frame(frame)
-                            .unwrap();
-                    }
+                    self.context
+                        .port_table
+                        .get_send_handle(packet.destination())
+                        .await
+                        .unwrap()
+                        .send_frame(smallvec![frame])?;
                 }
             }
         }
