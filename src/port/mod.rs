@@ -52,6 +52,7 @@ pub struct PortSendHandleImpl {
 pub enum PortSendHandleImplInner {
     Xdp(XdpSendHandle),
     Remote(UnboundedSender<Packet>),
+    RemoteXdp(RemoteXdpSendHandle),
 }
 
 impl PortSendHandleImpl {
@@ -66,6 +67,13 @@ impl PortSendHandleImpl {
         Self {
             port_id,
             inner: PortSendHandleImplInner::Remote(sender),
+        }
+    }
+
+    pub fn new_remote_xdp(port_id: u32, handle: RemoteXdpSendHandle) -> Self {
+        Self {
+            port_id,
+            inner: PortSendHandleImplInner::RemoteXdp(handle),
         }
     }
 
@@ -88,6 +96,7 @@ impl PortSendHandleImpl {
                 }
                 Ok(())
             }
+            PortSendHandleImplInner::RemoteXdp(handle) => handle.send_frame(frame),
         }
     }
 
@@ -98,6 +107,7 @@ impl PortSendHandleImpl {
                 hanle.send(Packet { payload: data })?;
                 Ok(())
             }
+            PortSendHandleImplInner::RemoteXdp(handle) => handle.send_raw_data(data),
         }
     }
 }

@@ -5,9 +5,16 @@ package remote_port;
 import "common.proto";
 
 service RemotePortService {
-    rpc CreateStream(stream Packet) returns (stream Packet);
+    rpc CreateStream(stream Event) returns (stream Event);
 }
 
 message Packet {
     bytes payload = 1;
+}
+
+message Event {
+    oneof event {
+        common.NodeInfo info = 1;
+        Packet packet = 2;
+    }
 }

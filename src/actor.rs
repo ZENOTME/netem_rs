@@ -1,7 +1,6 @@
 use std::{collections::HashMap, future::Future, sync::Arc};
 
 use anyhow::anyhow;
-use async_xdp::config::SocketConfig;
 use hwaddr::HwAddr;
 use tokio::sync::Mutex;
 
@@ -91,7 +90,7 @@ impl<C: DataView> ActorManager<C> {
 
     pub async fn add_remote_actor(
         &mut self,
-        remote_addr: String,
+        remote_addr: HostAddr,
         port_mac: HwAddr,
     ) -> anyhow::Result<()> {
         self.port_table.add_remote_port(remote_addr, port_mac).await
@@ -162,7 +161,7 @@ pub(crate) async fn start_actor<A: Actor>(
         for info in response.infos {
             let mac = HwAddr::from(&info.mac_addr[..6]);
             actor_manager
-                .add_remote_actor(remote_addr.host.clone(), mac)
+                .add_remote_actor(remote_addr.clone(), mac)
                 .await?;
         }
         remote_node_client.push(remote_addr);
@@ -170,6 +169,7 @@ pub(crate) async fn start_actor<A: Actor>(
 
     Ok(ActorServiceImpl {
         inner: Arc::new(Mutex::new(ActorServiceImplInner::<A> {
+            node_info,
             actor_manager,
             remote_node_client,
         })),
@@ -209,6 +209,7 @@ impl<A: Actor> ActorService for ActorServiceImpl<A> {
 struct ActorServiceImplInner<A: Actor> {
     actor_manager: ActorManager<A::C>,
     remote_node_client: Vec<HostAddr>,
+    node_info: NodeInfo,
 }
 
 impl<A: Actor> ActorServiceImplInner<A> {
@@ -239,16 +240,14 @@ impl<A: Actor> ActorServiceImplInner<A> {
         &mut self,
         request: tonic::Request<UpdateActorRequest>,
     ) -> std::result::Result<tonic::Response<UpdateActorResponse>, tonic::Status> {
-        let remote_addr = request.remote_addr().unwrap().ip().to_string();
-        let UpdateActorRequest { mac_addr } = request.into_inner();
-        if mac_addr.len() != 6 {
-            return Err(tonic::Status::invalid_argument(
-                "mac address should be 6 bytes length",
-            ));
-        }
+        let UpdateActorRequest { info, mac_addr } = request.into_inner();
+        let info: NodeInfo = info
+            .unwrap()
+            .try_into()
+            .map_err(|_| tonic::Status::invalid_argument("Fail to convert node info"))?;
         let mac = HwAddr::from(&mac_addr[..6]);
         self.actor_manager
-            .add_remote_actor(remote_addr, mac)
+            .add_remote_actor(info.addr, mac)
             .await
             .map_err(|_| tonic::Status::not_found("Build the transport before update actor"))?;
         Ok(tonic::Response::new(UpdateActorResponse {
@@ -275,12 +274,11 @@ impl<A: Actor> ActorServiceImplInner<A> {
                 "mac address should be 6 bytes length",
             ));
         }
-        let local_port_config = XdpConfig {
+        let local_port_config = XdpConfig::new_with_default_socket_config(
             if_name,
             queue_id,
-            mac_addr: HwAddr::from(&mac_addr[..6]),
-            socket_config: SocketConfig::default(),
-        };
+            HwAddr::from(&mac_addr[..6]),
+        );
         let actor_config = ActorConfig { local_port_config };
 
         self.actor_manager
@@ -295,6 +293,7 @@ impl<A: Actor> ActorServiceImplInner<A> {
                 .unwrap();
             remote_node_client
                 .update_actor(UpdateActorRequest {
+                    info: Some(self.node_info.clone().into()),
                     mac_addr: mac_addr.clone(),
                 })
                 .await?;

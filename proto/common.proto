@@ -8,3 +8,11 @@ message NodeInfo {
     int32 xdp_subnet_id = 3;
 }
 
+message Status {
+    enum Code {
+        OK = 0;
+        FAIL = 1;
+    }
+    Code code = 1;
+    string message = 2;
+}

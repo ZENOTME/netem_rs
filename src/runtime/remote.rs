@@ -3,9 +3,10 @@ use crate::{
     proto::{
         actor_service_server::ActorServiceServer,
         remote_port_service_server::RemotePortServiceServer,
+        remote_xdp_port_service_server::RemoteXdpPortServiceServer,
     },
-    start_actor, start_remote_grpc, Actor, ActorManager, GrpcTransportManager, MetaClient,
-    PortTable, XdpManager, XdpManagerConfig,
+    start_actor, start_remote_grpc, start_remote_xdp, Actor, ActorManager, GrpcTransportManager,
+    MetaClient, PortTable, RemoteXdpManager, XdpManager, XdpManagerConfig,
 };
 use anyhow::Result;
 use clap::Parser;
@@ -69,16 +70,44 @@ impl RemtoeRuntime {
         let port_table = PortTable::new();
         let xdp_manager = Arc::new(XdpManager::new(XdpManagerConfig::default()));
 
-        let actor_manager: ActorManager<A::C> = ActorManager::new(xdp_manager, port_table.clone());
+        let actor_manager: ActorManager<A::C> =
+            ActorManager::new(xdp_manager.clone(), port_table.clone());
 
+        let connect_with_grpc = |node: &NodeInfo| -> bool {
+            !args.remote_xdp_mode
+                || node.xdp_subnet_id == -1
+                || args.xdp_subnet_id.unwrap() != node.xdp_subnet_id
+        };
+
+        // start remote xdp service
+        let remote_xdp_service = if args.remote_xdp_mode {
+            let remote_xdp_manager = RemoteXdpManager::new(
+                xdp_manager,
+                port_table.clone(),
+                &args.xdp_program.unwrap(),
+                &args.xdp_program_section.unwrap_or("".to_string()),
+                &args.eth_iface.unwrap(),
+                self_node_info.eth_mac_addr.as_ref().cloned().unwrap(),
+            )
+            .await?;
+            Some(
+                start_remote_xdp(
+                    remote_nodes.clone(),
+                    remote_xdp_manager,
+                    self_node_info.clone(),
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+
+        // start grpc transport service
         let grpc_transport_manager = Arc::new(GrpcTransportManager::new(port_table.clone()));
         let grpc_nodes = remote_nodes
             .iter()
             .filter_map(|node| {
-                if !args.remote_xdp_mode
-                    || node.xdp_subnet_id == -1
-                    || args.xdp_subnet_id.unwrap() != node.xdp_subnet_id
-                {
+                if connect_with_grpc(node) {
                     Some(node.addr.clone())
                 } else {
                     None
@@ -90,25 +119,34 @@ impl RemtoeRuntime {
             grpc_nodes
         );
         let grpc_service = start_remote_grpc(
+            self_node_info.clone(),
             grpc_nodes,
             grpc_transport_manager.clone(),
             port_table.clone(),
         )
         .await?;
 
+        // start actor service
         let remote_node_info = remote_nodes.iter().map(|node| node.addr.clone()).collect();
         let actor_serive =
             start_actor::<A>(actor_manager, self_node_info, remote_node_info).await?;
 
         let actor_server = ActorServiceServer::new(actor_serive);
         let remote_port_server = RemotePortServiceServer::new(grpc_service);
+        let remote_xdp_server = remote_xdp_service.map(RemoteXdpPortServiceServer::new);
 
         trace!("Start to serve..");
 
-        Server::builder()
+        let builder = Server::builder()
             .initial_stream_window_size(33554432)
             .add_service(actor_server)
-            .add_service(remote_port_server)
+            .add_service(remote_port_server);
+        let builder = if let Some(server) = remote_xdp_server {
+            builder.add_service(server)
+        } else {
+            builder
+        };
+        builder
             .serve(args.listen_addr.as_str().parse().unwrap())
             .await
             .unwrap();

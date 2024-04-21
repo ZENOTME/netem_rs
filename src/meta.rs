@@ -93,9 +93,9 @@ impl TryFrom<crate::proto::NodeInfo> for NodeInfo {
 
     fn try_from(info: crate::proto::NodeInfo) -> Result<Self, Self::Error> {
         if !((info.eth_mac_addr.len() == 6 && info.xdp_subnet_id != -1)
-            || (info.host_addr.is_empty() && info.xdp_subnet_id == -1))
+            || (info.eth_mac_addr.is_empty() && info.xdp_subnet_id == -1))
         {
-            return Err(anyhow::anyhow!("Invalid node info"));
+            return Err(anyhow::anyhow!("Invalid node info {:?}", info));
         }
         Ok(NodeInfo {
             addr: info.host_addr.parse()?,

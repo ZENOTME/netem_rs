@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async_xdp = { git = "https://github.com/ZENOTME/async_xdp", branch = "xdp_prog"}
+async_xdp = { git = "https://github.com/ZENOTME/async_xdp", branch = "umem_hack"}
 anyhow = "1.0.44"
 tokio = { version = "1", features = ["full"] }
 log = "0.4.14"
