@@ -132,8 +132,7 @@ impl XdpManager {
 
         xdp_context_builder
             .with_exist_umem(new_umem, self.frame_manager.clone())
-            .with_socket_config(socket_config)
-            .with_trace_mode(true);
+            .with_socket_config(socket_config);
         xdp_context_builder.build(&self.xdp_runner)
     }
 }
