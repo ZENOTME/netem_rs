@@ -1,36 +1,13 @@
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Packet {
-    #[prost(bytes = "vec", tag = "1")]
-    pub payload: ::prost::alloc::vec::Vec<u8>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Event {
-    #[prost(oneof = "event::Event", tags = "1, 2")]
-    pub event: ::core::option::Option<event::Event>,
-}
-/// Nested message and enum types in `Event`.
-pub mod event {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Event {
-        #[prost(message, tag = "1")]
-        Info(super::super::common::NodeInfo),
-        #[prost(message, tag = "2")]
-        Packet(super::Packet),
-    }
-}
 /// Generated client implementations.
-pub mod remote_port_service_client {
+pub mod remote_xdp_port_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
-    pub struct RemotePortServiceClient<T> {
+    pub struct RemoteXdpPortServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl RemotePortServiceClient<tonic::transport::Channel> {
+    impl RemoteXdpPortServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -41,7 +18,7 @@ pub mod remote_port_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> RemotePortServiceClient<T>
+    impl<T> RemoteXdpPortServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -59,7 +36,7 @@ pub mod remote_port_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> RemotePortServiceClient<InterceptedService<T, F>>
+        ) -> RemoteXdpPortServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -73,7 +50,7 @@ pub mod remote_port_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            RemotePortServiceClient::new(InterceptedService::new(inner, interceptor))
+            RemoteXdpPortServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -106,11 +83,11 @@ pub mod remote_port_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        pub async fn create_stream(
+        pub async fn create_xdp_port(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<Message = super::Event>,
+            request: impl tonic::IntoRequest<super::super::common::NodeInfo>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::Event>>,
+            tonic::Response<super::super::common::Status>,
             tonic::Status,
         > {
             self.inner
@@ -124,40 +101,37 @@ pub mod remote_port_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/remote_port.RemotePortService/CreateStream",
+                "/remote_xdp_port.RemoteXdpPortService/CreateXdpPort",
             );
-            let mut req = request.into_streaming_request();
+            let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("remote_port.RemotePortService", "CreateStream"),
+                    GrpcMethod::new(
+                        "remote_xdp_port.RemoteXdpPortService",
+                        "CreateXdpPort",
+                    ),
                 );
-            self.inner.streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
     }
 }
 /// Generated server implementations.
-pub mod remote_port_service_server {
+pub mod remote_xdp_port_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with RemotePortServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with RemoteXdpPortServiceServer.
     #[async_trait]
-    pub trait RemotePortService: Send + Sync + 'static {
-        /// Server streaming response type for the CreateStream method.
-        type CreateStreamStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::Event, tonic::Status>,
-            >
-            + Send
-            + 'static;
-        async fn create_stream(
+    pub trait RemoteXdpPortService: Send + Sync + 'static {
+        async fn create_xdp_port(
             &self,
-            request: tonic::Request<tonic::Streaming<super::Event>>,
+            request: tonic::Request<super::super::common::NodeInfo>,
         ) -> std::result::Result<
-            tonic::Response<Self::CreateStreamStream>,
+            tonic::Response<super::super::common::Status>,
             tonic::Status,
         >;
     }
     #[derive(Debug)]
-    pub struct RemotePortServiceServer<T: RemotePortService> {
+    pub struct RemoteXdpPortServiceServer<T: RemoteXdpPortService> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
@@ -165,7 +139,7 @@ pub mod remote_port_service_server {
         max_encoding_message_size: Option<usize>,
     }
     struct _Inner<T>(Arc<T>);
-    impl<T: RemotePortService> RemotePortServiceServer<T> {
+    impl<T: RemoteXdpPortService> RemoteXdpPortServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -217,9 +191,10 @@ pub mod remote_port_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for RemotePortServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>>
+    for RemoteXdpPortServiceServer<T>
     where
-        T: RemotePortService,
+        T: RemoteXdpPortService,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -235,26 +210,28 @@ pub mod remote_port_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/remote_port.RemotePortService/CreateStream" => {
+                "/remote_xdp_port.RemoteXdpPortService/CreateXdpPort" => {
                     #[allow(non_camel_case_types)]
-                    struct CreateStreamSvc<T: RemotePortService>(pub Arc<T>);
+                    struct CreateXdpPortSvc<T: RemoteXdpPortService>(pub Arc<T>);
                     impl<
-                        T: RemotePortService,
-                    > tonic::server::StreamingService<super::Event>
-                    for CreateStreamSvc<T> {
-                        type Response = super::Event;
-                        type ResponseStream = T::CreateStreamStream;
+                        T: RemoteXdpPortService,
+                    > tonic::server::UnaryService<super::super::common::NodeInfo>
+                    for CreateXdpPortSvc<T> {
+                        type Response = super::super::common::Status;
                         type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
+                            tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<tonic::Streaming<super::Event>>,
+                            request: tonic::Request<super::super::common::NodeInfo>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as RemotePortService>::create_stream(&inner, request)
+                                <T as RemoteXdpPortService>::create_xdp_port(
+                                        &inner,
+                                        request,
+                                    )
                                     .await
                             };
                             Box::pin(fut)
@@ -267,7 +244,7 @@ pub mod remote_port_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = CreateStreamSvc(inner);
+                        let method = CreateXdpPortSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -278,7 +255,7 @@ pub mod remote_port_service_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
@@ -298,7 +275,7 @@ pub mod remote_port_service_server {
             }
         }
     }
-    impl<T: RemotePortService> Clone for RemotePortServiceServer<T> {
+    impl<T: RemoteXdpPortService> Clone for RemoteXdpPortServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -310,7 +287,7 @@ pub mod remote_port_service_server {
             }
         }
     }
-    impl<T: RemotePortService> Clone for _Inner<T> {
+    impl<T: RemoteXdpPortService> Clone for _Inner<T> {
         fn clone(&self) -> Self {
             Self(Arc::clone(&self.0))
         }
@@ -320,8 +297,8 @@ pub mod remote_port_service_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: RemotePortService> tonic::server::NamedService
-    for RemotePortServiceServer<T> {
-        const NAME: &'static str = "remote_port.RemotePortService";
+    impl<T: RemoteXdpPortService> tonic::server::NamedService
+    for RemoteXdpPortServiceServer<T> {
+        const NAME: &'static str = "remote_xdp_port.RemoteXdpPortService";
     }
 }

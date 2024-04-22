@@ -1,52 +1,5 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Status {
-    #[prost(enumeration = "status::Code", tag = "1")]
-    pub code: i32,
-    #[prost(string, tag = "2")]
-    pub message: ::prost::alloc::string::String,
-}
-/// Nested message and enum types in `Status`.
-pub mod status {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
-    #[repr(i32)]
-    pub enum Code {
-        Ok = 0,
-        Fail = 1,
-    }
-    impl Code {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                Code::Ok => "OK",
-                Code::Fail => "FAIL",
-            }
-        }
-        /// Creates an enum from field names used in the ProtoBuf definition.
-        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-            match value {
-                "OK" => Some(Self::Ok),
-                "FAIL" => Some(Self::Fail),
-                _ => None,
-            }
-        }
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateActorRequest {
     #[prost(string, tag = "1")]
     pub if_name: ::prost::alloc::string::String,
@@ -61,7 +14,7 @@ pub struct CreateActorRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateActorResponse {
     #[prost(message, optional, tag = "1")]
-    pub status: ::core::option::Option<Status>,
+    pub status: ::core::option::Option<super::common::Status>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -81,19 +34,21 @@ pub struct SubscribeResponse {
     #[prost(message, repeated, tag = "1")]
     pub infos: ::prost::alloc::vec::Vec<ActorInfo>,
     #[prost(message, optional, tag = "2")]
-    pub status: ::core::option::Option<Status>,
+    pub status: ::core::option::Option<super::common::Status>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateActorRequest {
-    #[prost(bytes = "vec", tag = "1")]
+    #[prost(message, optional, tag = "1")]
+    pub info: ::core::option::Option<super::common::NodeInfo>,
+    #[prost(bytes = "vec", tag = "2")]
     pub mac_addr: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateActorResponse {
     #[prost(message, optional, tag = "1")]
-    pub status: ::core::option::Option<Status>,
+    pub status: ::core::option::Option<super::common::Status>,
 }
 /// Generated client implementations.
 pub mod actor_service_client {

@@ -116,7 +116,7 @@ dependencies = [
 [[package]]
 name = "async_xdp"
 version = "0.1.0"
-source = "git+https://github.com/ZENOTME/async_xdp?branch=xdp_prog#dc030703906b2523cb50a2fd696804329ac2988d"
+source = "git+https://github.com/ZENOTME/async_xdp?branch=umem_hack#3737783a6cf96d94bf9817542f7ec85c8e8b071d"
 dependencies = [
  "anyhow",
  "core_affinity",
@@ -1839,7 +1839,7 @@ dependencies = [
 [[package]]
 name = "xsk-rs"
 version = "0.5.0"
-source = "git+https://github.com/ZENOTME/xsk-rs?branch=libxdp#fb3542bc534a748ab38f6a9d19490c67b3eb054d"
+source = "git+https://github.com/ZENOTME/xsk-rs?branch=umem_hack#382396ef78f01a7b36a3fa0f4ce69259a090b357"
 dependencies = [
  "bitflags 2.5.0",
  "cfg-if",

@@ -9,6 +9,8 @@ use hwaddr::HwAddr;
 
 mod local;
 pub(crate) use local::*;
+mod remote;
+pub(crate) use remote::*;
 
 #[derive(Clone, Debug)]
 pub struct XdpConfig {
@@ -65,6 +67,7 @@ impl Default for XdpManagerConfig {
         let umem_config = UmemConfig::builder()
             .fill_queue_size((4096).try_into().unwrap())
             .comp_queue_size((4096).try_into().unwrap())
+            .frame_headroom(16)
             .build()
             .unwrap();
         let slab_manager_config = SlabManagerConfig::new(4096);
@@ -79,6 +82,7 @@ pub(crate) type XdpManagerRef = Arc<XdpManager>;
 
 pub(crate) struct XdpManager {
     xdp_runner: SingleThreadRunner,
+    umem_config: UmemConfig,
     umem: Umem,
     frame_manager: SlabManager,
 }
@@ -98,6 +102,7 @@ impl XdpManager {
         Self {
             xdp_runner: SingleThreadRunner::new(),
             umem,
+            umem_config,
             frame_manager,
         }
     }
@@ -114,20 +119,6 @@ impl XdpManager {
         regsiter_xdp_program(program, session, if_name).map_err(|e| anyhow::anyhow!(e))
     }
 
-    fn create_new_context(
-        &self,
-        if_name: &str,
-        queue_id: u32,
-        socket: SocketConfig,
-    ) -> anyhow::Result<XdpContext> {
-        let mut xdp_context_builder = XdpContextBuilder::<SlabManager>::new(if_name, queue_id);
-        xdp_context_builder
-            .with_exist_umem(self.umem.clone(), self.frame_manager.clone())
-            .with_socket_config(socket)
-            .with_trace_mode(true);
-        xdp_context_builder.build(&self.xdp_runner)
-    }
-
     pub fn create_xdp(&self, config: XdpConfig) -> anyhow::Result<XdpContext> {
         let XdpConfig {
             if_name,
@@ -135,6 +126,13 @@ impl XdpManager {
             mac_addr: _,
             socket_config,
         } = config;
-        self.create_new_context(&if_name, queue_id, socket_config)
+        let mut xdp_context_builder = XdpContextBuilder::<SlabManager>::new(&if_name, queue_id);
+
+        let new_umem = unsafe { Umem::new_from_umem(self.umem_config, self.umem.clone())? };
+
+        xdp_context_builder
+            .with_exist_umem(new_umem, self.frame_manager.clone())
+            .with_socket_config(socket_config);
+        xdp_context_builder.build(&self.xdp_runner)
     }
 }

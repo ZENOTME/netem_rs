@@ -7,7 +7,7 @@ use anyhow::anyhow;
 use hwaddr::HwAddr;
 use tokio::sync::RwLock;
 
-use crate::PortSendHandleImpl;
+use crate::{HostAddr, PortSendHandleImpl};
 
 /// A table map port id to send handle. It can be shared between multiple owners and access concurrently.
 ///
@@ -21,7 +21,7 @@ pub struct PortTable {
     mac_to_id: Arc<RwLock<HashMap<HwAddr, u32>>>,
     id_to_ports: Arc<RwLock<HashMap<u32, PortSendHandleImpl>>>,
     // map remote addr(IP) to port id. Used to help find remote port id for a remote node.
-    remote_addr_to_id: Arc<RwLock<HashMap<String, u32>>>,
+    remote_addr_to_id: Arc<RwLock<HashMap<HostAddr, u32>>>,
 
     ports_cache: HashMap<HwAddr, PortSendHandleImpl>,
 }
@@ -62,7 +62,7 @@ impl PortTable {
     /// For remote port, it will reuse a same send handle for all remote ports with different mac whihin the same remote addr(remote mode).
     /// Usually, the port manager will use this function to add the send handle for remote node first.
     /// Then, the `ActorManager` will accpet the remote actor info and add the remote port using `add_remote_port`.
-    pub async fn add_remote_handle(&self, remote_addr: String, send_handle: PortSendHandleImpl) {
+    pub async fn add_remote_handle(&self, remote_addr: HostAddr, send_handle: PortSendHandleImpl) {
         assert!(
             send_handle.port_id() < self.port_id.load(std::sync::atomic::Ordering::Relaxed) as u32
         );
@@ -75,7 +75,7 @@ impl PortTable {
 
     pub async fn add_remote_port(
         &self,
-        remote_addr: String,
+        remote_addr: HostAddr,
         port_mac: HwAddr,
     ) -> anyhow::Result<()> {
         let mut mac_to_id = self.mac_to_id.write().await;

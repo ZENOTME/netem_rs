@@ -4,15 +4,6 @@ package actor;
 
 import "common.proto";
 
-message Status {
-    enum Code {
-        OK = 0;
-        FAIL = 1;
-    }
-    Code code = 1;
-    string message = 2;
-}
-
 message CreateActorRequest {
     string if_name = 1;
     uint32 queue_id = 2;
@@ -21,7 +12,7 @@ message CreateActorRequest {
 }
 
 message CreateActorResponse {
-    Status status = 1;
+    common.Status status = 1;
 }
 
 message SubscribeRequest {
@@ -34,15 +25,16 @@ message ActorInfo {
 
 message SubscribeResponse {
     repeated ActorInfo infos = 1;
-    Status status = 2;
+    common.Status status = 2;
 }
 
 message UpdateActorRequest {
-    bytes mac_addr = 1;
+    common.NodeInfo info = 1;
+    bytes mac_addr = 2;
 }
 
 message UpdateActorResponse {
-    Status status = 1;
+    common.Status status = 1;
 }
 
 service ActorService {
