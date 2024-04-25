@@ -125,10 +125,11 @@ impl RemoteXdpActor {
                         })
                         .await?;
                 } else {
-                    let send_hanle = port_table
-                        .get_send_handle(packet.destination())
-                        .await
-                        .unwrap();
+                    let Some(send_hanle) = port_table.get_send_handle(packet.destination()).await
+                    else {
+                        log::error!("Can't find the handle for: {:?}", packet);
+                        continue;
+                    };
                     if send_hanle.is_remote() {
                         return Err(anyhow::anyhow!(
                             "Can't send to another remote port for remote port"
