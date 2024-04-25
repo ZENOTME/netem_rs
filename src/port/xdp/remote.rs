@@ -111,9 +111,11 @@ impl RemoteXdpActor {
                     return Err(anyhow::anyhow!("Invalid protocol"));
                 }
                 // decapsulate the eth header for remote XDP channel.
+                log::trace!("before adjust: {:?}",Packet::new(frame.data_ref()));
                 frame.adjust_head(14);
                 // Process
                 let packet = Packet::new(frame.data_ref()).unwrap();
+                log::trace!("after adjust: {:?}",packet);
                 if packet.destination().is_broadcast() {
                     port_table
                         .for_each_port(|&_, send_handle| {
@@ -125,10 +127,11 @@ impl RemoteXdpActor {
                         })
                         .await?;
                 } else {
-                    let send_hanle = port_table
-                        .get_send_handle(packet.destination())
-                        .await
-                        .unwrap();
+                    let Some(send_hanle) = port_table.get_send_handle(packet.destination()).await
+                    else {
+                        log::error!("Can't find send handle for {:?}", packet);
+                        continue;
+                    };
                     if send_hanle.is_remote() {
                         return Err(anyhow::anyhow!(
                             "Can't send to another remote port for remote port"
@@ -151,6 +154,7 @@ pub struct RemoteXdpSendHandle {
 impl RemoteXdpSendHandle {
     pub fn send_frame(&self, mut frames: SmallVec<[Frame; BATCH_SIZSE]>) -> anyhow::Result<()> {
         for frame in &mut frames {
+            log::trace!("before adjust: {:?}", Packet::new(frame.data_ref()));
             // Encapsulate the eth header for remote XDP channel.
             frame.adjust_head(-14);
             let data = frame.data_mut();
@@ -159,6 +163,7 @@ impl RemoteXdpSendHandle {
                 .set_protocol(Protocol::Unknown(XDP_PROTOCOL))?
                 .set_source(self.src_mac)?
                 .set_destination(self.dst_mac)?;
+            log::trace!("after adjust: {:?}",packet);
         }
         self.xdp_send_handle.send_frame(frames)?;
         Ok(())
