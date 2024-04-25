@@ -120,7 +120,7 @@ impl RemoteXdpActor {
                 if packet.destination().is_broadcast() {
                     port_table
                         .for_each_port(|&_, send_handle| {
-                            if send_handle.is_remote() {
+                            if !send_handle.is_remote() {
                                 send_handle.send_raw_data(frame.data_ref().to_vec())
                             } else {
                                 Ok(())
