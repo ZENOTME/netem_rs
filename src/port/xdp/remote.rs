@@ -7,6 +7,7 @@ use crate::{
 use async_xdp::{Frame, XdpReceiveHandle};
 use hwaddr::HwAddr;
 use packet::ether::{Packet, Protocol};
+use packet::PacketMut;
 use smallvec::{smallvec, SmallVec};
 
 const XDP_PROTOCOL: u16 = 5401;
@@ -177,7 +178,8 @@ impl RemoteXdpSendHandle {
             .set_protocol(Protocol::Unknown(XDP_PROTOCOL))?
             .set_source(self.src_mac)?
             .set_destination(self.dst_mac)?;
-
+        packet.payload_mut().copy_from_slice(&data);
+            
         self.xdp_send_handle.send(buffer)?;
         Ok(())
     }
