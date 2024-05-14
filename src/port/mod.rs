@@ -4,7 +4,7 @@ mod xdp;
 use tokio::sync::mpsc::UnboundedSender;
 pub use xdp::*;
 mod port_table;
-pub(crate) use port_table::*;
+pub use port_table::*;
 
 use smallvec::SmallVec;
 

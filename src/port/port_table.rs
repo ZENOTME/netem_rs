@@ -87,6 +87,10 @@ impl PortTable {
         Ok(())
     }
 
+    pub async fn get_port_id(&self, mac_addr: HwAddr) -> Option<u32> {
+        self.mac_to_id.read().await.get(&mac_addr).cloned()
+    }
+
     pub async fn get_send_handle(&mut self, mac_addr: HwAddr) -> Option<&PortSendHandleImpl> {
         if let std::collections::hash_map::Entry::Vacant(e) = self.ports_cache.entry(mac_addr) {
             let port_id = *self.mac_to_id.read().await.get(&mac_addr)?;

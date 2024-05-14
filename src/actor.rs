@@ -14,8 +14,9 @@ use crate::{
     XdpManagerRef,
 };
 
+/// DataView will be created once and cloneed to each actor.
 pub trait DataView: Clone + Send + 'static + Sync {
-    fn new() -> Self;
+    fn new_wtih_port_table(port_table: PortTable) -> Self;
 }
 
 #[allow(async_fn_in_trait)]
@@ -57,7 +58,7 @@ impl<C: DataView> ActorManager<C> {
         Self {
             join_handles: Vec::new(),
             local_port_manager,
-            data_view: C::new(),
+            data_view: C::new_wtih_port_table(port_table.clone()),
             port_table,
             actor_id: 0,
             actor_infos: HashMap::new(),
