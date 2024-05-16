@@ -23,11 +23,14 @@ futures-async-stream = "0.2"
 redis = { version = "0.25.3", features = ["tokio-comp"] }
 futures = "0.3.30"
 url = "2"
+spin = { version = "0.9.8", features = ["spin_mutex"] }
+intrusive-collections = "0.9"
 
 [dev-dependencies]
 tokio ={ version = "1", features = ["full"]}
 env_logger = "0.11.3"
 clap = { version = "4.5.3", features = ["derive"] }
+intrusive-collections = "0.9"
 
 [build-dependencies]
 prost-build = "0.12"
