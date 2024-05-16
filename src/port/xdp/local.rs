@@ -20,12 +20,10 @@ impl LocalXdpManager {
         let receive_handle = context.receive_handle()?;
         let send_handle = context.send_handle();
 
-        self.port_table
-            .add_local_port(
-                port_mac,
-                PortSendHandleImpl::new_local(port_id, send_handle),
-            )
-            .await;
+        self.port_table.add_local_port(
+            port_mac,
+            PortSendHandleImpl::new_local(port_id, send_handle),
+        );
 
         Ok(PortReceiveHandleImpl::new_local(port_id, receive_handle))
     }

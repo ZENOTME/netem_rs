@@ -53,9 +53,18 @@ pub enum PortSendHandleImplInner {
     Xdp(XdpSendHandle),
     Remote(UnboundedSender<Packet>),
     RemoteXdp(RemoteXdpSendHandle),
+    Mock,
 }
 
 impl PortSendHandleImpl {
+    #[cfg(test)]
+    pub fn new_mock(port_id: u32) -> Self {
+        Self {
+            port_id,
+            inner: PortSendHandleImplInner::Mock,
+        }
+    }
+
     pub fn new_local(port_id: u32, handle: XdpSendHandle) -> Self {
         Self {
             port_id,
@@ -97,6 +106,7 @@ impl PortSendHandleImpl {
                 Ok(())
             }
             PortSendHandleImplInner::RemoteXdp(handle) => handle.send_frame(frame),
+            PortSendHandleImplInner::Mock => unreachable!(),
         }
     }
 
@@ -108,6 +118,7 @@ impl PortSendHandleImpl {
                 Ok(())
             }
             PortSendHandleImplInner::RemoteXdp(handle) => handle.send_raw_data(data),
+            PortSendHandleImplInner::Mock => unreachable!(),
         }
     }
 }

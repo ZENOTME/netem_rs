@@ -94,7 +94,7 @@ impl<C: DataView> ActorManager<C> {
         remote_addr: HostAddr,
         port_mac: HwAddr,
     ) -> anyhow::Result<()> {
-        self.port_table.add_remote_port(remote_addr, port_mac).await
+        self.port_table.add_remote_port(remote_addr, port_mac)
     }
 
     pub async fn add_actor<A: Actor>(&mut self, config: ActorConfig) -> anyhow::Result<()>

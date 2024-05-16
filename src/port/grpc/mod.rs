@@ -54,22 +54,20 @@ impl RemoteActor {
     ) -> anyhow::Result<()> {
         if packet.destination().is_broadcast() {
             log::trace!("process broadcast packet");
-            port_table
-                .for_each_port(|_, send_handle| {
-                    if !send_handle.is_remote() {
-                        send_handle.send_raw_data(packet.as_ref().to_vec())
-                    } else {
-                        Ok(())
-                    }
-                })
-                .await?;
+            port_table.for_each_port(|_, send_handle| {
+                if !send_handle.is_remote() {
+                    send_handle.send_raw_data(packet.as_ref().to_vec())
+                } else {
+                    Ok(())
+                }
+            })?;
         } else {
             log::trace!(
                 "process unicast packet, dst: {:?}, len: {}",
                 packet.destination(),
                 packet.as_ref().len()
             );
-            if let Some(send_handle) = port_table.get_send_handle(packet.destination()).await {
+            if let Some(send_handle) = port_table.get_send_handle(packet.destination()) {
                 assert!(!send_handle.is_remote());
                 send_handle.send_raw_data(packet.as_ref().to_vec())?;
             } else {
@@ -166,9 +164,7 @@ pub async fn start_remote_grpc(
         }
 
         let port_id = port_table.fetch_new_port_id();
-        port_table
-            .add_remote_handle(info.addr, PortSendHandleImpl::new_remote(port_id, send_tx))
-            .await;
+        port_table.add_remote_handle(info.addr, PortSendHandleImpl::new_remote(port_id, send_tx));
         grpc_manager.register_new_port(port_id, receive_stream);
     }
     Ok(RemotePortServiceImpl {
@@ -217,9 +213,9 @@ impl RemotePortService for RemotePortServiceImpl {
 
         let mut receive_stream = request.into_inner();
         let info: NodeInfo = match receive_stream.message().await?.unwrap().event.unwrap() {
-            EventEnum::Info(info) => info
-                .try_into()
-                .map_err(|err| tonic::Status::invalid_argument(format!("Fail convert node info: {err}")))?,
+            EventEnum::Info(info) => info.try_into().map_err(|err| {
+                tonic::Status::invalid_argument(format!("Fail convert node info: {err}"))
+            })?,
             EventEnum::Packet(_) => {
                 return Err(tonic::Status::invalid_argument(
                     "The first message should be the node info.",
@@ -229,8 +225,7 @@ impl RemotePortService for RemotePortServiceImpl {
 
         let port_id = self.port_table.fetch_new_port_id();
         self.port_table
-            .add_remote_handle(info.addr, PortSendHandleImpl::new_remote(port_id, send_tx))
-            .await;
+            .add_remote_handle(info.addr, PortSendHandleImpl::new_remote(port_id, send_tx));
         self.grpc_manager.register_new_port(port_id, receive_stream);
 
         Ok(tonic::Response::new(Self::get_event_receive_stream(

@@ -60,12 +60,10 @@ impl RemoteXdpManager {
         };
 
         let port_id = self.port_table.fetch_new_port_id();
-        self.port_table
-            .add_remote_handle(
-                remote_addr,
-                PortSendHandleImpl::new_remote_xdp(port_id, remote_send_handle),
-            )
-            .await;
+        self.port_table.add_remote_handle(
+            remote_addr,
+            PortSendHandleImpl::new_remote_xdp(port_id, remote_send_handle),
+        );
 
         Ok(())
     }
@@ -112,24 +110,21 @@ impl RemoteXdpActor {
                     return Err(anyhow::anyhow!("Invalid protocol"));
                 }
                 // decapsulate the eth header for remote XDP channel.
-                log::trace!("before adjust: {:?}",Packet::new(frame.data_ref()));
+                log::trace!("before adjust: {:?}", Packet::new(frame.data_ref()));
                 frame.adjust_head(14);
                 // Process
                 let packet = Packet::new(frame.data_ref()).unwrap();
-                log::trace!("after adjust: {:?}",packet);
+                log::trace!("after adjust: {:?}", packet);
                 if packet.destination().is_broadcast() {
-                    port_table
-                        .for_each_port(|&_, send_handle| {
-                            if !send_handle.is_remote() {
-                                send_handle.send_raw_data(frame.data_ref().to_vec())
-                            } else {
-                                Ok(())
-                            }
-                        })
-                        .await?;
+                    port_table.for_each_port(|&_, send_handle| {
+                        if !send_handle.is_remote() {
+                            send_handle.send_raw_data(frame.data_ref().to_vec())
+                        } else {
+                            Ok(())
+                        }
+                    })?;
                 } else {
-                    let Some(send_hanle) = port_table.get_send_handle(packet.destination()).await
-                    else {
+                    let Some(send_hanle) = port_table.get_send_handle(packet.destination()) else {
                         log::error!("Can't find send handle for {:?}", packet);
                         continue;
                     };
@@ -164,7 +159,7 @@ impl RemoteXdpSendHandle {
                 .set_protocol(Protocol::Unknown(XDP_PROTOCOL))?
                 .set_source(self.src_mac)?
                 .set_destination(self.dst_mac)?;
-            log::trace!("after adjust: {:?}",packet);
+            log::trace!("after adjust: {:?}", packet);
         }
         self.xdp_send_handle.send_frame(frames)?;
         Ok(())
@@ -179,7 +174,7 @@ impl RemoteXdpSendHandle {
             .set_source(self.src_mac)?
             .set_destination(self.dst_mac)?;
         packet.payload_mut().copy_from_slice(&data);
-            
+
         self.xdp_send_handle.send(buffer)?;
         Ok(())
     }
