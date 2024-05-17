@@ -12,7 +12,7 @@ impl LocalXdpManager {
         Self { inner, port_table }
     }
 
-    pub async fn create_xdp(&self, xdp_config: XdpConfig) -> anyhow::Result<PortReceiveHandleImpl> {
+    pub fn create_xdp(&self, xdp_config: XdpConfig) -> anyhow::Result<PortReceiveHandleImpl> {
         let port_id = self.port_table.fetch_new_port_id();
         let port_mac = xdp_config.mac_addr;
 

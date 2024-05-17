@@ -116,7 +116,7 @@ dependencies = [
 [[package]]
 name = "async_xdp"
 version = "0.1.0"
-source = "git+https://github.com/ZENOTME/async_xdp?branch=umem_hack#3737783a6cf96d94bf9817542f7ec85c8e8b071d"
+source = "git+https://github.com/ZENOTME/async_xdp?branch=umem_hack#df142daf133dad765a733d90673cab66ed8c81f9"
 dependencies = [
  "anyhow",
  "core_affinity",
@@ -887,6 +887,7 @@ dependencies = [
  "async-trait",
  "async_xdp",
  "clap",
+ "core_affinity",
  "env_logger",
  "futures",
  "futures-async-stream",

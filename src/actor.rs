@@ -50,10 +50,16 @@ pub(crate) struct ActorManager<D: DataView> {
     actor_id: u32,
 
     actor_infos: HashMap<u32, ActorInfo>,
+
+    runtime: tokio::runtime::Runtime,
 }
 
 impl<C: DataView> ActorManager<C> {
-    pub fn new(xdp_manager: XdpManagerRef, port_table: PortTable) -> Self {
+    pub fn new(
+        xdp_manager: XdpManagerRef,
+        port_table: PortTable,
+        runtime: tokio::runtime::Runtime,
+    ) -> Self {
         let local_port_manager = LocalXdpManager::new(xdp_manager, port_table.clone());
         Self {
             join_handles: Vec::new(),
@@ -62,20 +68,17 @@ impl<C: DataView> ActorManager<C> {
             port_table,
             actor_id: 0,
             actor_infos: HashMap::new(),
+            runtime,
         }
     }
 
-    async fn create_actor_context(
-        &mut self,
-        config: ActorConfig,
-    ) -> anyhow::Result<ActorContext<C>> {
+    fn create_actor_context(&mut self, config: ActorConfig) -> anyhow::Result<ActorContext<C>> {
         let actor_id = self.actor_id;
         self.actor_id += 1;
 
         let receive_handle = self
             .local_port_manager
-            .create_xdp(config.local_port_config)
-            .await?;
+            .create_xdp(config.local_port_config)?;
 
         Ok(ActorContext {
             data_view: self.data_view.clone(),
@@ -97,16 +100,16 @@ impl<C: DataView> ActorManager<C> {
         self.port_table.add_remote_port(remote_addr, port_mac)
     }
 
-    pub async fn add_actor<A: Actor>(&mut self, config: ActorConfig) -> anyhow::Result<()>
+    pub fn add_actor<A: Actor>(&mut self, config: ActorConfig) -> anyhow::Result<()>
     where
         A: Actor<C = C>,
     {
         let mac = config.local_port_config.mac_addr;
-        let actor_context = self.create_actor_context(config).await?;
+        let actor_context = self.create_actor_context(config)?;
         let actor_id = actor_context.actor_id;
         let mut actor = A::new(actor_context);
 
-        let join = tokio::spawn(async move {
+        let join = self.runtime.spawn(async move {
             match actor.run().await {
                 Ok(_) => (),
                 Err(err) => {
@@ -129,11 +132,13 @@ impl<C: DataView> ActorManager<C> {
         Ok(())
     }
 
-    pub async fn join_all(&mut self) {
-        for join in self.join_handles.drain(..) {
-            let _actor_id = join.await.unwrap();
-            // # TODO: Remove actor from actor_infos
-        }
+    pub fn join(self) {
+        self.runtime.block_on(async {
+            for join in self.join_handles {
+                let actor_id = join.await.unwrap();
+                log::info!("Actor {} finished", actor_id);
+            }
+        });
     }
 }
 
@@ -282,10 +287,7 @@ impl<A: Actor> ActorServiceImplInner<A> {
         );
         let actor_config = ActorConfig { local_port_config };
 
-        self.actor_manager
-            .add_actor::<A>(actor_config)
-            .await
-            .unwrap();
+        self.actor_manager.add_actor::<A>(actor_config).unwrap();
 
         // Broadcast the new port to remote node.
         for remote_node_client in self.remote_node_client.iter_mut() {

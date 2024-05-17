@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_xdp::{
     config::{LibxdpFlags, SocketConfig, UmemConfig},
-    regsiter_xdp_program, FrameManager, SingleThreadRunner, SlabManager, SlabManagerConfig, Umem,
+    regsiter_xdp_program, FrameManager, PollerRunner, SlabManager, SlabManagerConfig, Umem,
     XdpContext, XdpContextBuilder,
 };
 use hwaddr::HwAddr;
@@ -81,14 +81,14 @@ impl Default for XdpManagerConfig {
 pub(crate) type XdpManagerRef = Arc<XdpManager>;
 
 pub(crate) struct XdpManager {
-    xdp_runner: SingleThreadRunner,
+    xdp_runner: Box<dyn PollerRunner>,
     umem_config: UmemConfig,
     umem: Umem,
     frame_manager: SlabManager,
 }
 
 impl XdpManager {
-    pub fn new(config: XdpManagerConfig) -> Self {
+    pub fn new(config: XdpManagerConfig, xdp_runner: Box<dyn PollerRunner>) -> Self {
         let XdpManagerConfig {
             umem_config,
             slab_manager_config,
@@ -100,7 +100,7 @@ impl XdpManager {
         let frame_manager = SlabManager::new(slab_manager_config, frames).unwrap();
 
         Self {
-            xdp_runner: SingleThreadRunner::new(),
+            xdp_runner,
             umem,
             umem_config,
             frame_manager,

@@ -9,8 +9,10 @@ use crate::{
     MetaClient, PortTable, RemoteXdpManager, XdpManager, XdpManagerConfig,
 };
 use anyhow::Result;
+use async_xdp::SingleThreadRunner;
 use clap::Parser;
 use log::trace;
+use tokio::runtime::Runtime;
 use std::sync::Arc;
 use tonic::transport::Server;
 
@@ -68,10 +70,13 @@ impl RemtoeRuntime {
             .await;
 
         let port_table = PortTable::new();
-        let xdp_manager = Arc::new(XdpManager::new(XdpManagerConfig::default()));
+        let xdp_manager = Arc::new(XdpManager::new(
+            XdpManagerConfig::default(),
+            Box::new(SingleThreadRunner::new()),
+        ));
 
         let actor_manager: ActorManager<A::C> =
-            ActorManager::new(xdp_manager.clone(), port_table.clone());
+            ActorManager::new(xdp_manager.clone(), port_table.clone(), Runtime::new().unwrap());
 
         let connect_with_grpc = |node: &NodeInfo| -> bool {
             !args.remote_xdp_mode

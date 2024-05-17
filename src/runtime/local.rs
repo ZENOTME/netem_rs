@@ -1,5 +1,6 @@
 use std::{fs, str::FromStr, sync::Arc};
 
+use async_xdp::{PollerRunner, SingleThreadRunner};
 use clap::{command, Parser};
 use hwaddr::HwAddr;
 
@@ -57,19 +58,49 @@ fn parse_toml_config_file(yml: &str) -> anyhow::Result<Vec<ActorConfig>> {
 pub struct LocalRunTime;
 
 impl LocalRunTime {
-    pub async fn start<A: Actor>() {
+    pub fn start<A: Actor>() {
         let args = LocalRunTimeArgs::parse();
         let config = parse_toml_config_file(&args.toml).unwrap();
 
         let port_table = PortTable::new();
-        let xdp_manager = Arc::new(XdpManager::new(XdpManagerConfig::default()));
+        let xdp_manager = Arc::new(XdpManager::new(
+            XdpManagerConfig::default(),
+            Box::new(SingleThreadRunner::new()),
+        ));
 
-        let mut actor_manager: ActorManager<A::C> = ActorManager::new(xdp_manager, port_table);
+        let mut actor_manager: ActorManager<A::C> = ActorManager::new(
+            xdp_manager,
+            port_table,
+            tokio::runtime::Runtime::new().unwrap(),
+        );
 
         for actor_config in config {
-            actor_manager.add_actor::<A>(actor_config).await.unwrap();
+            actor_manager.add_actor::<A>(actor_config).unwrap();
         }
 
-        actor_manager.join_all().await;
+        actor_manager.join();
+    }
+
+    pub fn start_with_custom<A: Actor>(
+        actor_runtime: tokio::runtime::Runtime,
+        xdp_poller_runner: Box<dyn PollerRunner>,
+    ) {
+        let args = LocalRunTimeArgs::parse();
+        let config = parse_toml_config_file(&args.toml).unwrap();
+
+        let port_table = PortTable::new();
+        let xdp_manager = Arc::new(XdpManager::new(
+            XdpManagerConfig::default(),
+            xdp_poller_runner,
+        ));
+
+        let mut actor_manager: ActorManager<A::C> =
+            ActorManager::new(xdp_manager, port_table, actor_runtime);
+
+        for actor_config in config {
+            actor_manager.add_actor::<A>(actor_config).unwrap();
+        }
+
+        actor_manager.join();
     }
 }
