@@ -290,13 +290,14 @@ impl<T> UnsafeWindow<T> {
         event_queue: &mut EventQueue<T>,
         process: &mut impl EventProcess<T = T>,
     ) -> anyhow::Result<()> {
-        let mut cursor = self.events.front_mut();
+        let mut cursor = self.events.back_mut();
         while let Some(unsafe_event) = cursor.get()
-            && unsafe_event.ts() < &ts
+            && unsafe_event.ts() >= &ts
         {
-            cursor.move_next();
+            cursor.move_prev();
         }
 
+        cursor.move_next();
         while let Some(mut event) = cursor.remove() {
             let is_source_event = !event.cancel.get();
 
