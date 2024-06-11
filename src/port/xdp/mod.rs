@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_xdp::{
-    config::{LibxdpFlags, SocketConfig, UmemConfig},
+    config::{BindFlags, LibxdpFlags, SocketConfig, UmemConfig},
     regsiter_xdp_program, FrameManager, PollerRunner, SlabManager, SlabManagerConfig, Umem,
     XdpContext, XdpContextBuilder,
 };
@@ -96,7 +96,7 @@ impl XdpManager {
 
         // Create the umem and slab manager
         let (umem, frames) =
-            Umem::new(umem_config, (4096 * 16).try_into().unwrap(), false).unwrap();
+            Umem::new(umem_config, (4096 * 256).try_into().unwrap(), false).unwrap();
         let frame_manager = SlabManager::new(slab_manager_config, frames).unwrap();
 
         Self {

@@ -163,6 +163,11 @@ impl PortTable {
         self.id_to_ports.get(port_id)
     }
 
+    pub fn get_send_handle_by_id(&mut self, port_id: u32) -> Option<&PortSendHandleImpl> {
+        self.try_apply_control();
+        self.id_to_ports.get(&port_id)
+    }
+
     pub fn for_each_port<F>(&mut self, mut f: F) -> anyhow::Result<()>
     where
         F: FnMut(&u32, &PortSendHandleImpl) -> anyhow::Result<()>,

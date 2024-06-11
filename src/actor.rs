@@ -17,6 +17,9 @@ use crate::{
 /// DataView will be created once and cloneed to each actor.
 pub trait DataView: Clone + Send + 'static + Sync {
     fn new_wtih_port_table(port_table: PortTable) -> Self;
+    fn new_wtih_port_table_runtime_handle(port_table: PortTable, _handle: tokio::runtime::Handle) -> Self {
+        Self::new_wtih_port_table(port_table)
+    }
 }
 
 #[allow(async_fn_in_trait)]
@@ -31,6 +34,7 @@ pub struct ActorContext<D: DataView> {
     pub receive_handle: PortReceiveHandleImpl,
     pub actor_id: u32,
     pub data_view: D,
+    pub runtime_handle: tokio::runtime::Handle,
 }
 
 #[derive(Debug)]
@@ -64,7 +68,7 @@ impl<C: DataView> ActorManager<C> {
         Self {
             join_handles: Vec::new(),
             local_port_manager,
-            data_view: C::new_wtih_port_table(port_table.clone()),
+            data_view: C::new_wtih_port_table_runtime_handle(port_table.clone(), runtime.handle().clone()),
             port_table,
             actor_id: 0,
             actor_infos: HashMap::new(),
@@ -85,6 +89,7 @@ impl<C: DataView> ActorManager<C> {
             port_table: self.port_table.clone(),
             receive_handle,
             actor_id,
+            runtime_handle: self.runtime.handle().clone(),
         })
     }
 

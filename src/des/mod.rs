@@ -2,14 +2,20 @@
 // 1. automactic event scheduling
 // 2. optimized event scheduling
 
-use std::cell::Cell;
+pub mod batch;
+pub mod parallel;
+pub mod state;
+pub mod realtime_executor;
+pub mod serialize;
+
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::LinkedList;
 use intrusive_collections::LinkedListLink;
-use log::warn;
+use log::{error, trace, warn};
 use std::fmt::{self, Debug};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -21,7 +27,7 @@ pub struct EventWrap<T> {
     cancel: Rc<Cell<bool>>,
     child_cancel: Vec<Rc<Cell<bool>>>,
 
-    event: Event<T>,
+    pub event: Event<T>,
 }
 
 pub struct Event<T> {
@@ -57,6 +63,14 @@ impl<T> Event<T> {
             is_null: true,
         }
     }
+
+    pub fn inner_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+
+    pub fn ts(&self) -> &SystemTime {
+        &self.ts
+    }
 }
 
 impl<T> From<Event<T>> for EventWrap<T> {
@@ -91,25 +105,44 @@ intrusive_adapter!(EventAdpator<T> = Box<EventWrap<T>>: EventWrap<T> { link: Lin
 
 pub struct EventQueue<T> {
     queue: LinkedList<EventAdpator<T>>,
+    time: SystemTime,
 }
 
 impl<T> EventQueue<T> {
     pub fn new() -> Self {
         Self {
-            queue: LinkedList::new(EventAdpator::new()),
+            queue: LinkedList::new(EventAdpator::new()),    
+            time: SystemTime::now(),
         }
     }
 
     pub fn enqueu_event(&mut self, event: Box<EventWrap<T>>) {
         let mut last_cursor = self.queue.back_mut();
         while let Some(element) = last_cursor.get() {
-            if element.ts() >= event.ts() {
+            if element.ts() > event.ts() {
                 last_cursor.move_prev();
             } else {
                 break;
             }
         }
+        let event_ts = event.ts().clone();
         last_cursor.insert_after(event);
+        // println!(
+        //     "Create from enqueue: {:?}",
+        //     SystemTime::now().duration_since(event_ts).unwrap()
+        // );
+    }
+
+    pub fn enqueu_event_from_front(&mut self, event: Box<EventWrap<T>>) {
+        let mut cursor = self.queue.front_mut();
+        while let Some(element) = cursor.get() {
+            if element.ts() <= event.ts() {
+                cursor.move_next();
+            } else {
+                break;
+            }
+        }
+        cursor.insert_before(event);
     }
 
     // dequeue the first event statisfied the check
@@ -124,12 +157,17 @@ impl<T> EventQueue<T> {
                 continue;
             }
             if check(event) {
+                self.time = event.ts().clone();
                 return cursor.remove();
             } else {
                 return None;
             }
         }
         None
+    }
+
+    pub fn current_time(&self) -> SystemTime {
+        self.time.clone()
     }
 
     pub fn is_empy(&self) -> bool {
@@ -168,6 +206,12 @@ impl<T> EventReceiver<T> {
     fn try_recv(&mut self) -> anyhow::Result<Option<Event<T>>> {
         match self.receiver.try_recv() {
             Ok(event) => {
+                // if !event.is_null {
+                //     println!(
+                //         "Create from receiver: {:?}",
+                //         SystemTime::now().duration_since(event.ts).unwrap()
+                //     );
+                // }
                 // Sync mode
                 if event.ts < self.next_least {
                     warn!("Sync mode, event ts < next least ts. Drop it.");
@@ -348,6 +392,8 @@ pub struct EventSimulator<T: EventProcess> {
     event_queue: EventQueue<T::T>,
     event_process: T,
     enable_optimistic: Option<u64>,
+    // < 1 microsend | < 100 microsend |
+    log: [usize; 3],
 }
 
 impl<T: EventProcess> EventSimulator<T> {
@@ -363,13 +409,26 @@ impl<T: EventProcess> EventSimulator<T> {
             event_queue: EventQueue::new(),
             event_process,
             enable_optimistic,
+            log: [0; 3],
         }
     }
 
     fn receive(&mut self) -> anyhow::Result<SystemTime> {
+        let now = SystemTime::now();
+        let event_cnt = Rc::new(RefCell::new(0));
         let (next_least, min_event_ts) = self.source_receiver.try_receive(|event| {
+            *event_cnt.borrow_mut() += 1;
             self.event_queue.enqueu_event(event);
         })?;
+        let elapse = now.elapsed().unwrap();
+        if elapse.as_nanos() < 1000 {
+            self.log[0] += 1;
+        } else if elapse.as_nanos() < 100_000 {
+            self.log[1] += 1;
+        } else {
+            self.log[2] += 1;
+        }
+
         // # NOTE
         // This order is matter.
         if let Some(min) = min_event_ts {
@@ -386,6 +445,7 @@ impl<T: EventProcess> EventSimulator<T> {
 
     #[inline]
     fn run_once_without_occ(&mut self) -> anyhow::Result<()> {
+        let now = SystemTime::now();
         // Control
         loop {
             let control_receiver = self.control_receiver.try_recv();
@@ -400,15 +460,39 @@ impl<T: EventProcess> EventSimulator<T> {
 
         // New Source Event
         let next_least = self.receive()?;
+        let receive_elaspes = now.elapsed().unwrap();
+        let now2 = SystemTime::now();
 
+        let mut actual_elapse = Duration::from_secs(0);
+        let mut cnt = 0;
+        let mut events_ts = vec![];
         // Process
         while let Some(mut event) = self
             .event_queue
             .dequeue_event(|event| event.ts() <= &next_least)
         {
+            let now = SystemTime::now();
             self.event_process
                 .process_event(&mut event, &mut self.event_queue, false)?;
+            actual_elapse += now.elapsed().unwrap();
+            cnt += 1;
+            events_ts.push(event.ts().clone());
         }
+
+        let process_elapse = now2.elapsed().unwrap();
+        let total_elapse = now.elapsed().unwrap();
+        // if total_elapse.as_micros() > 100 && cnt > 1 {
+        //     println!(
+        //         "Receive: {} Process: {}, Actual Process: {}, cnt: {}, range: {:?}",
+        //         receive_elaspes.as_micros(),
+        //         process_elapse.as_micros(),
+        //         actual_elapse.as_micros(),
+        //         cnt,
+        //         events_ts[events_ts.len() - 1]
+        //             .duration_since(events_ts[0])
+        //             .unwrap()
+        //     );
+        // }
 
         Ok(())
     }
@@ -424,10 +508,7 @@ impl<T: EventProcess> EventSimulator<T> {
             let unsafe_bound = next_least
                 .checked_add(Duration::from_nanos(interval_nanosecond))
                 .unwrap();
-            while let Some(mut event) = self
-                .event_queue
-                .dequeue_event(|event| event.ts() <= &unsafe_bound)
-            {
+            while let Some(mut event) = self.event_queue.dequeue_event(|event| true) {
                 if event.ts() <= &next_least {
                     self.event_process
                         .process_event(&mut event, &mut self.event_queue, false)?;
@@ -443,7 +524,13 @@ impl<T: EventProcess> EventSimulator<T> {
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
+        let mut now = SystemTime::now();
         loop {
+            let elapse = now.elapsed().unwrap();
+            if elapse.as_secs() > 1 {
+                // println!("< 1 microseconds: {} < 100 microseconds: {} else {}", self.log[0],self.log[1],self.log[2]);
+                now = SystemTime::now();
+            }
             self.run_once()?;
         }
     }

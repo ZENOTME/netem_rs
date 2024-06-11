@@ -6,7 +6,7 @@ use smallvec::smallvec;
 struct EmptyDataView;
 
 impl DataView for EmptyDataView {
-    fn new() -> Self {
+    fn new_wtih_port_table(_port_table: netem_rs::PortTable) -> Self {
         Self
     }
 }
@@ -43,22 +43,21 @@ impl Actor for ForwardActor {
                             } else {
                                 Ok(())
                             }
-                        })
-                        .await?;
+                        })?
                 } else {
-                    self.context
+                    if let Some(send_handle) = self
+                        .context
                         .port_table
                         .get_send_handle(packet.destination())
-                        .await
-                        .unwrap()
-                        .send_frame(smallvec![frame])?;
+                    {
+                        send_handle.send_frame(smallvec![frame])?;
+                    }
                 }
             }
         }
     }
 }
 
-#[tokio::main]
-async fn main() {
-    LocalRunTime::start::<ForwardActor>().await;
+fn main() {
+    LocalRunTime::start::<ForwardActor>();
 }

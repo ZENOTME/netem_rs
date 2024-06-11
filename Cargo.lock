@@ -897,6 +897,7 @@ dependencies = [
  "packet",
  "prost",
  "prost-build",
+ "rand",
  "redis",
  "smallvec",
  "spin",

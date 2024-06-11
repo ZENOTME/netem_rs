@@ -391,7 +391,10 @@ struct EmptyChannel {
 }
 
 impl EmptyChannel {
-    async fn process_unsafe_packet(event: &mut UnsafeEvent, port_table: &mut PortTable) -> anyhow::Result<()> {
+    async fn process_unsafe_packet(
+        event: &mut UnsafeEvent,
+        port_table: &mut PortTable,
+    ) -> anyhow::Result<()> {
         let EventInner::Packet(event) = event.take_out_event().inner;
         Self::process_packet(event, port_table).await.unwrap();
         Ok(())
@@ -400,19 +403,17 @@ impl EmptyChannel {
     async fn process_packet(event: PacketEvent, port_table: &mut PortTable) -> anyhow::Result<()> {
         // Redirect this packet
         let packet = Packet::new(event.frame.data_ref()).unwrap();
-        let src_port_id = port_table.get_port_id(packet.source()).await.unwrap();
+        let src_port_id = port_table.get_port_id(packet.source()).unwrap();
         if packet.destination().is_broadcast() {
-            port_table
-                .for_each_port(|&port_id, send_handle| {
-                    if port_id != src_port_id {
-                        send_handle.send_raw_data(event.frame.data_ref().to_vec())
-                    } else {
-                        Ok(())
-                    }
-                })
-                .await?;
+            port_table.for_each_port(|&port_id, send_handle| {
+                if port_id != src_port_id {
+                    send_handle.send_raw_data(event.frame.data_ref().to_vec())
+                } else {
+                    Ok(())
+                }
+            })?;
         } else {
-            if let Some(handle) = port_table.get_send_handle(packet.destination()).await {
+            if let Some(handle) = port_table.get_send_handle(packet.destination()) {
                 handle.send_frame(smallvec![event.frame])?;
             } else {
                 error!("No such port {}", packet.destination());
@@ -434,12 +435,13 @@ impl EmptyChannel {
             if event.meta.ts < least_time {
                 let EventInner::Packet(event) = event_list.pop_event().unwrap().inner;
                 Self::process_packet(event, port_table).await?;
-            } else {
-                // optimize process
-                let mut event = UnsafeEvent::new(event_list.pop_event().unwrap());
-                Self::process_unsafe_packet(&mut event, port_table).await?;
-                unsafe_window.insert(event);
-            }
+            } 
+            // else {
+            //     // optimize process
+            //     let mut event = UnsafeEvent::new(event_list.pop_event().unwrap());
+            //     Self::process_unsafe_packet(&mut event, port_table).await?;
+            //     unsafe_window.insert(event);
+            // }
         }
         return Ok(());
     }
@@ -506,6 +508,27 @@ impl DataView for EmptyDataView {
             }
             .run(),
         ));
+
+        //test ticker
+        for _ in 0..5 {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            control_tx
+                .send(Box::new(UnboundedReceiverStream::new(rx)))
+                .unwrap();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_micros(1));
+                loop {
+                    select! {
+                        biased;
+                        _ = interval.tick() => {
+                            let now = std::time::SystemTime::now();
+                            tx.send(SourceEvent::Tick(now)).unwrap();
+                        }
+                    }
+                }
+            });
+        }
+
         Self { control_tx }
     }
 }
@@ -530,7 +553,7 @@ impl Actor for ForwardActor {
 
     async fn run(&mut self) -> anyhow::Result<()> {
         let mut has_send = false;
-        let mut interval = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut interval = tokio::time::interval(std::time::Duration::from_micros(1));
         loop {
             select! {
                 biased;
@@ -553,10 +576,9 @@ impl Actor for ForwardActor {
     }
 }
 
-#[tokio::main(flavor = "multi_thread")]
-async fn main() {
+fn main() {
     env_logger::init();
-    LocalRunTime::start::<ForwardActor>().await;
+    LocalRunTime::start::<ForwardActor>();
 }
 
 #[cfg(test)]

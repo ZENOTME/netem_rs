@@ -2,6 +2,7 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(offset_of)]
 #![feature(let_chains)]
+#![feature(associated_type_defaults)]
 
 mod actor;
 pub use actor::*;

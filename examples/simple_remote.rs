@@ -8,7 +8,7 @@ use packet::ether::Packet;
 struct EmptyDataView;
 
 impl DataView for EmptyDataView {
-    fn new() -> Self {
+    fn new_wtih_port_table(_port_table: netem_rs::PortTable) -> Self {
         Self
     }
 }
@@ -46,8 +46,7 @@ impl Actor for ForwardActor {
                             } else {
                                 Ok(())
                             }
-                        })
-                        .await?;
+                        })?;
                 } else {
                     trace!(
                         "unicast dst: {:?} len: {}",
@@ -57,7 +56,6 @@ impl Actor for ForwardActor {
                     self.context
                         .port_table
                         .get_send_handle(packet.destination())
-                        .await
                         .unwrap()
                         .send_frame(smallvec::smallvec![frame])
                         .unwrap();
